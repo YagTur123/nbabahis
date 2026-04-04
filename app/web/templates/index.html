@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NBA Predictor v12.0</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.sgp-hdr { font-size:12px; font-weight:700; color:var(--hot); margin: 16px 0 8px; letter-spacing:0.5px; }
+.sgp-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin-bottom:16px;}
+.sgp-card { background:var(--s2); border:1px solid var(--border); border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px;}
+.sgp-title { font-size:13px; font-weight:700; color:var(--text);}
+.sgp-desc { font-size:10px; color:var(--muted); line-height:1.4;}
+.sgp-legs { font-family:var(--mono); font-size:10px; padding:8px; background:var(--bg); border-radius:4px; border-left:3px solid var(--green);}
+.sgp-legs div { margin-bottom:4px; }
+.sgp-legs div:last-child { margin-bottom:0; }
+.sgp-foot { display:flex; justify-content:space-between; align-items:center; margin-top:auto;}
+.sgp-prob { font-family:var(--mono); font-weight:700; color:var(--green); font-size:11px;}
+.btn-sm { padding: 5px 10px; font-size:10px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand">
+    <div class="bdot"></div>
+    <div><div class="bname">NBA Predictor</div><div class="bsub">v11.0 · ML+ODDS+BACKTEST</div></div>
+  </div>
+  <div class="nav-btns">
+    <button class="nav-btn active" onclick="showSection('predict')" id="nav-predict">📊 Tahmin</button>
+    <button class="nav-btn" onclick="showSection('backtest')" id="nav-backtest">📈 Backtest</button>
+    <button class="nav-btn" onclick="showSection('compare')" id="nav-compare">⚖️ Karşılaştır</button>
+    <button class="nav-btn" onclick="showSection('settings')" id="nav-settings">⚙️ Ayarlar</button>
+  </div>
+  <div class="hdr-status">
+    <div id="ml-status">Yükleniyor...</div>
+    <div id="odds-api-status" style="margin-top:2px">Odds API: kontrol ediliyor...</div>
+  </div>
+</header>
+
+<div class="layout">
+<div class="col-main">
+
+  <!-- ═══ TAHMİN SEKSİYONU ═══ -->
+  <div id="sec-predict" class="section active">
+    <div class="date-bar">
+      <button class="dqb on" onclick="setDay('today',this)">Bugün</button>
+      <button class="dqb" onclick="setDay('tmrw',this)">Yarın</button>
+      <input type="date" class="di" id="datepick" onchange="sDate=this.value">
+      <button class="btn btn-green" id="btn-load" onclick="loadGames()">Maçları Getir</button>
+      <button class="btn btn-purple" id="btn-scan" onclick="runScan()">🔍 Geceyi Tara</button>
+      <label style="display:flex; align-items:center; gap:4px; font-size:11px; margin-left:8px; color:var(--muted); cursor:pointer;">
+        <input type="checkbox" id="chk-stake" checked> Stake Aktif
+      </label>
+      <button class="btn btn-gold" id="btn-odds" onclick="refreshOdds()" title="Odds API'den veri çek">🔄 Odds</button>
+      <button class="btn btn-blue" id="btn-csv" onclick="exportCSV()" style="display:none">⬇️ CSV</button>
+    </div>
+    <div id="sec-games" class="hidden">
+      <div class="slbl" id="games-lbl">Maçlar</div>
+      <div id="games-hint" class="hidden" style="font-size:10px;color:var(--muted);margin:-4px 0 12px;line-height:1.35;max-width:800px"></div>
+      <div class="games-grid" id="games-grid"></div>
+    </div>
+    <div id="sec-team" class="hidden">
+      <div class="slbl">Takım Seç</div>
+      <div class="team-row" id="team-row"></div>
+      <div id="sec-predict-btn" class="hidden">
+        <button class="btn btn-green" style="width:100%;padding:11px;font-size:13px;margin-bottom:18px" onclick="runPredict()">TAHMİN ET →</button>
+      </div>
+    </div>
+    <div id="sec-progress" class="hidden">
+      <div class="prog-wrap">
+        <div class="prog-title">Analiz Ediliyor...</div>
+        <div class="prog-sub" id="prog-sub"></div>
+        <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
+        <div class="pinfo"><span class="plbl" id="prog-lbl">Başlatılıyor...</span><span class="ppct" id="prog-pct">0%</span></div>
+      </div>
+    </div>
+    <div id="sec-results" class="hidden">
+      <div class="res-header">
+        <div><div class="res-title" id="res-title">—</div><div class="res-meta" id="res-meta"></div></div>
+        <button class="back-btn" onclick="resetResults()">← Geri</button>
+      </div>
+      <div class="sum-row" id="res-stats"></div>
+      
+      <!-- SGP CONTAINER -->
+      <div id="sgp-container" class="hidden"></div>
+      
+      <div class="filter-bar">
+        <div class="fg"><span class="fglbl">TÜM</span><button class="ftab on" onclick="filt('ALL',this)">Tümü</button></div>
+        <div class="fg"><span class="fglbl">TEMEL</span>
+          <button class="ftab" onclick="filt('PTS',this)">PTS</button>
+          <button class="ftab" onclick="filt('REB',this)">REB</button>
+          <button class="ftab" onclick="filt('AST',this)">AST</button></div>
+        <div class="fg"><span class="fglbl">DEF</span>
+          <button class="ftab" onclick="filt('STL',this)">STL</button>
+          <button class="ftab" onclick="filt('BLK',this)">BLK</button></div>
+        <div class="fg"><span class="fglbl">KOMBİ</span>
+          <button class="ftab" onclick="filt('PRA',this)">PRA</button>
+          <button class="ftab" onclick="filt('P+R',this)">P+R</button>
+          <button class="ftab" onclick="filt('P+A',this)">P+A</button></div>
+        <div class="fg"><span class="fglbl">TREND</span>
+          <button class="ftab" onclick="filtTrend('HOT',this)">🔥 HOT</button>
+          <button class="ftab" onclick="filtTrend('COLD',this)">❄️ COLD</button></div>
+        <div class="fg"><span class="fglbl">ŞUT</span>
+          <button class="ftab" onclick="filt('FGM',this)">FGM</button>
+          <button class="ftab" onclick="filt('FGA',this)">FGA</button>
+          <button class="ftab" onclick="filt('FG3M',this)">3PM</button>
+          <button class="ftab" onclick="filt('FG3A',this)">3PA</button></div>
+        <div class="fg"><span class="fglbl">FAUL/TOP</span>
+          <button class="ftab" onclick="filt('FTM',this)">FTM</button>
+          <button class="ftab" onclick="filt('FTA',this)">FTA</button>
+          <button class="ftab" onclick="filt('TOV',this)">TOV</button>
+          <button class="ftab" onclick="filt('PF',this)">PF</button></div>
+        <div class="fg"><span class="fglbl">FIRSAT</span>
+          <button class="ftab" onclick="filt('VALUE',this)">Yüksek Edge</button>
+          <button class="ftab" style="color:var(--green);border-color:var(--green)" onclick="filt('CONF',this)">GÜVENİLİR</button></div>
+        <div class="fg"><span class="fglbl">KUPON</span>
+          <button class="ftab" style="color:var(--hot);border-color:var(--hot)" onclick="filt('SGP',this)">🔥 KOMBİNELER</button></div>
+      </div>
+      <div class="sel-bar">
+        <label><input type="checkbox" id="chk-all" onchange="toggleAll(this)"> Tümünü Seç</label>
+        <span class="sel-cnt" id="sel-cnt">0 seçili</span>
+      </div>
+      <div id="results-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══ BACKTEST SEKSİYONU ═══ -->
+  <div id="sec-backtest" class="section">
+    <!-- Backtest: Tahmin bölümüyle aynı maç/takım seçici -->
+    <div class="date-bar">
+      <button class="dqb on" onclick="setBtDay('today',this)">Bugün</button>
+      <button class="dqb" onclick="setBtDay('yest',this)">Dün</button>
+      <input type="date" class="di" id="bt-datepick" onchange="btDate=this.value">
+      <button class="btn btn-green" id="btn-bt-load" onclick="loadBtGames()">Maçları Getir</button>
+      <button class="btn btn-purple" id="btn-bt-all" onclick="runBtAll()">🔍 Tüm Günü Test Et</button>
+    </div>
+    <div id="bt-games-wrap" class="hidden">
+      <div class="slbl" id="bt-games-lbl">Maçlar</div>
+      <div class="games-grid" id="bt-games-grid"></div>
+    </div>
+    <div id="bt-team-wrap" class="hidden">
+      <div class="slbl">Takım Seç</div>
+      <div class="team-row" id="bt-team-row"></div>
+      <div id="bt-run-wrap" class="hidden">
+        <button class="btn btn-green" style="width:100%;padding:11px;font-size:13px;margin-bottom:18px" onclick="runBtGame()">BACKTEST BAŞLAT →</button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="bt-progress" class="hidden">
+      <div class="prog-wrap">
+        <div class="prog-title">Backtest Çalışıyor...</div>
+        <div class="prog-sub" id="bt-prog-sub"></div>
+        <div class="pbar"><div class="pfill" id="bt-pfill" style="width:0%"></div></div>
+        <div class="pinfo"><span class="plbl" id="bt-prog-lbl">Başlatılıyor...</span><span class="ppct" id="bt-prog-pct">0%</span></div>
+      </div>
+    </div>
+
+    <!-- Sonuçlar -->
+    <div id="bt-results" class="hidden">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-val" id="bt-total">0</div><div class="stat-card-lbl">Tahmin</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-verified" style="color:var(--blue)">0</div><div class="stat-card-lbl">Doğrulanan</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-winrate" style="color:var(--amber)">-%</div><div class="stat-card-lbl">Win Rate</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-roi" style="color:var(--green)">-%</div><div class="stat-card-lbl">Sim. ROI</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-avgerr" style="color:var(--purple)">-</div><div class="stat-card-lbl">Ort. Hata</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-avgconf">-</div><div class="stat-card-lbl">Ort. Güven</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-hits" style="color:var(--green)">-</div><div class="stat-card-lbl">Hit / Miss</div></div>
+        <div class="stat-card"><div class="stat-card-val" id="bt-avgedge">-</div><div class="stat-card-lbl">Ort. Edge</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head" onclick="togPanel('bt-table-wrap','bt-arr')">
+          <span class="panel-title">Detaylı Sonuçlar (Tahmin vs Gerçek)</span>
+          <span class="panel-arr" id="bt-arr">▼</span>
+        </div>
+        <div id="bt-table-wrap" style="overflow-x:auto">
+          <table class="bt-table">
+            <thead><tr>
+              <th>Oyuncu</th><th>Takım</th><th>Stat</th>
+              <th>Tahmin</th><th>Gerçek</th><th>Line</th>
+              <th>Hata</th><th>Hit</th><th>Güven</th><th>Odds</th>
+            </tr></thead>
+            <tbody id="bt-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hit rate geçmişi -->
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-head" onclick="togPanel('hr-body','hr-arr');loadHitRates()">
+        <span class="panel-title">📊 Stat Bazlı Hit Rate Geçmişi</span>
+        <span class="panel-arr" id="hr-arr">▶</span>
+      </div>
+      <div id="hr-body" class="hidden" style="padding:14px">
+        <table class="bt-table">
+          <thead><tr><th>Stat</th><th>Hit Rate</th><th>Ort. Hata</th><th>Toplam</th></tr></thead>
+          <tbody id="hr-tbody"><tr><td colspan="4" style="color:var(--dim);text-align:center;padding:12px">Yükleniyor...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KARŞILAŞTIRMA SEKSİYONU ═══ -->
+  <div id="sec-compare" class="section">
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Önce tahmin çalıştırın, sonra karşılaştırmak istediğiniz oyuncuları seçin</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="cmp-p1" class="form-input" style="flex:1;max-width:220px">
+          <option value="">Oyuncu 1...</option>
+        </select>
+        <select id="cmp-p2" class="form-input" style="flex:1;max-width:220px">
+          <option value="">Oyuncu 2...</option>
+        </select>
+        <button class="btn btn-green" onclick="runCompare()">Karşılaştır</button>
+      </div>
+    </div>
+    <div id="cmp-results" class="hidden">
+      <div class="cmp-grid" id="cmp-grid"></div>
+    </div>
+  </div>
+
+  <!-- ═══ AYARLAR SEKSİYONU ═══ -->
+  <div id="sec-settings" class="section">
+    <div class="panel" style="max-width:500px">
+      <div class="panel-head static"><span class="panel-title">⚙️ API Ayarları</span></div>
+      <div class="settings-form">
+        <div class="form-row">
+          <label class="form-label">The Odds API Key</label>
+          <input type="password" class="form-input" id="settings-odds-key" placeholder="API key girin...">
+          <small style="color:var(--muted);font-size:9px;display:block;margin-top:4px">
+            <a href="https://the-odds-api.com" target="_blank" style="color:var(--blue)">the-odds-api.com</a>'dan ücretsiz alabilirsiniz
+          </small>
+        </div>
+        <button class="form-btn-save" onclick="saveSettings()">💾 Kaydet</button>
+        <div id="settings-status" style="margin-top:8px;font-size:10px;color:var(--green);display:none">✓ Kaydedildi!</div>
+
+        <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="form-label">MEVCUT DURUM</div>
+          <div style="font-size:11px;line-height:2">
+            <div>ML Modelleri: <span id="cfg-ml" style="color:var(--green)">-</span></div>
+            <div>Odds API: <span id="cfg-odds" style="color:var(--red)">Yapılandırılmamış</span></div>
+            <div>Hit Rate Verisi: <span id="cfg-hr" style="color:var(--muted)">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- col-main -->
+
+<!-- ═══ SAĞ PANEL ═══ -->
+<div class="col-side">
+  <div class="panel">
+    <div class="panel-head static">
+      <span class="panel-title">🎫 Kupon <span id="slip-badge" style="font-family:var(--mono);font-size:9px;color:var(--amber);margin-left:5px">0 seçim</span></span>
+    </div>
+    <div id="slip-empty" class="slip-empty">Sol taraftan tahmin seç</div>
+    <div id="slip-list" class="slip-list hidden"></div>
+    <div id="slip-foot" class="slip-foot hidden">
+      <div class="slip-stat"><span>Seçim</span><span id="sf-n">0</span></div>
+      <div class="slip-stat"><span>Ort. Edge</span><span id="sf-edge">—</span></div>
+      <div class="slip-stat"><span>Ort. Güven</span><span id="sf-conf">—</span></div>
+      <button class="slip-save" onclick="saveSlip()">💾 Kuponu Kaydet</button>
+      <button class="slip-clear" onclick="clearSlip()">Temizle</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head" onclick="togPanel('hist-body','hist-arr')">
+      <span class="panel-title">📂 Kayıtlı Kuponlar</span>
+      <span class="panel-arr" id="hist-arr">▶</span>
+    </div>
+    <div class="hist-list hidden" id="hist-body"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head" onclick="togPanel('inj-body','inj-arr')">
+      <span class="panel-title">🏥 Sakatlık Raporu</span>
+      <span class="panel-arr" id="inj-arr">▶</span>
+    </div>
+    <div class="hist-list hidden" id="inj-body">
+      <div style="padding:12px;font-family:var(--mono);font-size:9px">
+        <div style="color:var(--red);margin-bottom:6px">Out / Doubtful</div>
+        <div id="inj-out">-</div>
+        <div style="color:var(--amber);margin:10px 0 6px">Questionable</div>
+        <div id="inj-quest">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div><!-- layout -->
+</div><!-- app -->
+
+<!-- MODAL -->
+<div class="modal-bg hidden" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-top">
+      <div class="modal-title">📋 Kupon Detayı</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-items"></div>
+      <div class="modal-sum" id="modal-sum"></div>
+      <button class="copy-btn" onclick="copySlip()">📋 Kopyala</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
