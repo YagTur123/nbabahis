@@ -44,6 +44,10 @@ class MainActivity : ComponentActivity() {
                                     onScanNightClicked = {
                                         viewModel.scanNight()
                                         currentScreen = "SCAN_NIGHT"
+                                    },
+                                    onBacktestClicked = {
+                                        viewModel.runBacktest()
+                                        currentScreen = "BACKTEST"
                                     }
                                 )
                             }
@@ -53,6 +57,13 @@ class MainActivity : ComponentActivity() {
                                     activeFilter = uiState.statFilter,
                                     onFilterSelected = { viewModel.setFilter(it) },
                                     onBackClicked = { currentScreen = "GAMES" }
+                                )
+                            }
+                            "BACKTEST" -> {
+                                com.nbabahis.app.ui.screens.BacktestScreen(
+                                    report = uiState.backtestReport,
+                                    onBackClicked = { currentScreen = "GAMES" },
+                                    onRunBacktestClicked = { viewModel.runBacktest() }
                                 )
                             }
                         }

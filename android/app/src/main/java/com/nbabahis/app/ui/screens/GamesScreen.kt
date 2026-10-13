@@ -34,6 +34,7 @@ fun GamesScreen(
     onPlayerSelected: (com.nbabahis.app.data.model.NbaPlayer) -> Unit,
     onFilterSelected: (String) -> Unit,
     onScanNightClicked: () -> Unit,
+    onBacktestClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -54,6 +55,16 @@ fun GamesScreen(
                     }
                 },
                 actions = {
+                    FilledTonalButton(
+                        onClick = onBacktestClicked,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = CardDark,
+                            contentColor = AccentGreen
+                        ),
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        Text("📈 Doğrula", fontSize = 12.sp)
+                    }
                     FilledTonalButton(
                         onClick = onScanNightClicked,
                         colors = ButtonDefaults.filledTonalButtonColors(

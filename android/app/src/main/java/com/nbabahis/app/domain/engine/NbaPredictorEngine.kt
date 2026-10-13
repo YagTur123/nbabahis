@@ -31,6 +31,7 @@ object NbaPredictorEngine {
         player: NbaPlayer,
         history: List<PlayerGameLog>,
         teamRoster: List<NbaPlayer>,
+        opponentRoster: List<NbaPlayer> = emptyList(),
         teamStats: TeamStats?,
         opponentStats: TeamStats?,
         isHome: Boolean,
@@ -93,7 +94,14 @@ object NbaPredictorEngine {
         // 3. Dinamik Taktiksel Eşleşme & Savunma Şeması (Drop vs Switch vs Blitz & Tempo)
         val tactical = MatchupTacticalEngine.calculateTacticalModifiers(player, teamStats, opponentStats, isHome)
 
-        // 4. Dinamik Blowout Riski
+        // 4. Birebir Savunmacı Eşleşmesi (Primary Defender Impact)
+        val defenderImpact = PrimaryDefenderEngine.calculateMatchupImpact(
+            offensivePlayer = player,
+            opponentRoster = opponentRoster,
+            opponentAbbr = opponentStats?.teamAbbr ?: "OPP"
+        )
+
+        // 5. Dinamik Blowout Riski
         val ownMargin = teamStats?.avgMargin ?: 0.0
         val oppMargin = opponentStats?.avgMargin ?: 0.0
         val marginDiff = abs(ownMargin - oppMargin)
@@ -104,7 +112,7 @@ object NbaPredictorEngine {
             1.0
         }
 
-        // 5. Sakatlık Kullanım Kayması (Takım arkadaşı yokluğunda şut payı)
+        // 6. Sakatlık Kullanım Kayması (Takım arkadaşı yokluğunda şut payı)
         val usageBoost = UsageShiftCalculator.calculateUsageMultiplier(player, teamRoster)
 
         val statTypes = listOf(
@@ -131,6 +139,7 @@ object NbaPredictorEngine {
                 circadianFatigue = circadianFatigue,
                 stakesImpact = stakesImpact,
                 tactical = tactical,
+                defenderImpact = defenderImpact,
                 blowoutModifier = blowoutModifier,
                 usageBoost = usageBoost,
                 oppStats = opponentStats
@@ -148,6 +157,7 @@ object NbaPredictorEngine {
             stakesReport = stakesImpact.explanation,
             tacticalReport = tactical.tacticalBreakdown,
             fatigueReport = "Yolculuk Katsayısı: ${(circadianFatigue * 100).toInt()}% · Deplasman Maç #${consecutiveAwayGames}",
+            defenderReport = defenderImpact.matchupSummary,
             predictions = predictions
         )
     }
@@ -163,6 +173,7 @@ object NbaPredictorEngine {
         circadianFatigue: Double,
         stakesImpact: StakesImpact,
         tactical: TacticalModifiers,
+        defenderImpact: DefenderMatchupImpact,
         blowoutModifier: Double,
         usageBoost: Double,
         oppStats: TeamStats?
@@ -199,10 +210,12 @@ object NbaPredictorEngine {
             "PTS" -> {
                 projection *= stakesImpact.scoringIntensityModifier
                 projection *= tactical.ptsModifier
+                projection *= defenderImpact.ptsModifier
             }
             "3PM" -> {
                 projection *= stakesImpact.scoringIntensityModifier
                 projection *= tactical.threesModifier
+                projection *= defenderImpact.fg3mModifier
             }
             "AST" -> {
                 projection *= tactical.astModifier
@@ -212,6 +225,7 @@ object NbaPredictorEngine {
             }
             "PRA" -> {
                 projection *= ((tactical.ptsModifier + tactical.rebModifier + tactical.astModifier) / 3.0)
+                projection *= ((defenderImpact.ptsModifier * 2 + 1.0) / 3.0)
             }
         }
 

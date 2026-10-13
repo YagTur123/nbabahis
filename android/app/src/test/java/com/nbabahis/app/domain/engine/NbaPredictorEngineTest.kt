@@ -122,4 +122,68 @@ class NbaPredictorEngineTest {
         assertTrue("Oyun önemi raporu boş olmamalıdır", result.stakesReport.isNotEmpty())
         assertTrue("Yolculuk raporu boş olmamalıdır", result.fatigueReport.isNotEmpty())
     }
+
+    @Test
+    fun testPrimaryDefenderImpact() {
+        val player = NbaPlayer(playerId = 201939, name = "Stephen Curry", teamAbbr = "GSW", position = "G")
+        val history = createSampleHistory(28.0, 5.0, 5.0)
+
+        // Rakip Celtics kadrosunda elit savunmacı Derrick White var
+        val opponentRoster = listOf(
+            NbaPlayer(playerId = 1628401, name = "Derrick White", teamAbbr = "BOS", position = "G"),
+            NbaPlayer(playerId = 1628369, name = "Jayson Tatum", teamAbbr = "BOS", position = "F")
+        )
+
+        val result = NbaPredictorEngine.predictPlayer(
+            player = player,
+            history = history,
+            teamRoster = listOf(player),
+            opponentRoster = opponentRoster,
+            teamStats = TeamStats(teamAbbr = "GSW"),
+            opponentStats = TeamStats(teamAbbr = "BOS", defRating = 110.0),
+            isHome = false,
+            targetDate = LocalDate.now()
+        )
+
+        assertNotNull(result)
+        assertTrue("Savunmacı raporu Derrick White'ı içermelidir", result!!.defenderReport.contains("Derrick White"))
+    }
+
+    @Test
+    fun testBacktestTrackerEvaluation() {
+        val player = NbaPlayer(playerId = 203999, name = "Nikola Jokic", teamAbbr = "DEN", position = "C")
+        val history = createSampleHistory(26.0, 12.0, 9.0)
+
+        val pred = NbaPredictorEngine.predictPlayer(
+            player = player,
+            history = history,
+            teamRoster = listOf(player),
+            teamStats = TeamStats(teamAbbr = "DEN"),
+            opponentStats = TeamStats(teamAbbr = "LAL"),
+            isHome = true,
+            targetDate = LocalDate.now()
+        )
+
+        assertNotNull(pred)
+
+        // Gerçekleşen maç skoru: Jokic 27 sayı, 11 ribaund, 10 asist yaptı
+        val actual = PlayerGameLog(
+            gameId = "test_actual",
+            gameDate = LocalDate.now().toString(),
+            matchup = "DEN vs. LAL",
+            min = 36.0,
+            pts = 27.0,
+            reb = 11.0,
+            ast = 10.0
+        )
+
+        val report = BacktestTrackerEngine.evaluateBacktest(
+            pastPredictions = listOf(pred!!),
+            actualBoxScores = mapOf(player.playerId to actual)
+        )
+
+        assertEquals(1, report.evaluatedCount)
+        assertTrue("Doğrulama karnesi A veya B olmalıdır", report.accuracyGrade in listOf("A+", "A", "B+", "B"))
+        assertTrue("PTS için MAE hesaplanmalıdır", report.metricsByStat.containsKey("PTS"))
+    }
 }

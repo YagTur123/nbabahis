@@ -61,6 +61,7 @@ class NbaRepository(
     suspend fun predictForPlayer(
         player: NbaPlayer,
         teamRoster: List<NbaPlayer>,
+        opponentRoster: List<NbaPlayer> = emptyList(),
         opponentAbbr: String,
         isHome: Boolean,
         targetDate: LocalDate = LocalDate.now()
@@ -73,6 +74,7 @@ class NbaRepository(
             player = player,
             history = logs,
             teamRoster = teamRoster,
+            opponentRoster = opponentRoster,
             teamStats = teamStats,
             opponentStats = oppStats,
             isHome = isHome,
@@ -90,15 +92,15 @@ class NbaRepository(
             val homeRoster = getRoster(game.homeTeamId, game.homeTeamAbbr)
             val awayRoster = getRoster(game.awayTeamId, game.awayTeamAbbr)
 
-            // Predict top players for each team
+            // Predict top players for each team with opponent roster passed
             homeRoster.take(5).forEach { player ->
-                predictForPlayer(player, homeRoster, game.awayTeamAbbr, isHome = true, targetDate)?.let {
+                predictForPlayer(player, homeRoster, awayRoster, game.awayTeamAbbr, isHome = true, targetDate)?.let {
                     results.add(it)
                 }
             }
 
             awayRoster.take(5).forEach { player ->
-                predictForPlayer(player, awayRoster, game.homeTeamAbbr, isHome = false, targetDate)?.let {
+                predictForPlayer(player, awayRoster, homeRoster, game.homeTeamAbbr, isHome = false, targetDate)?.let {
                     results.add(it)
                 }
             }

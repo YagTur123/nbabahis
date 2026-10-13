@@ -135,6 +135,15 @@ fun PredictionCard(
                                 lineHeight = 15.sp
                             )
                         }
+                        if (result.defenderReport.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "🔒 ${result.defenderReport}",
+                                fontSize = 11.sp,
+                                color = AccentGreen,
+                                lineHeight = 15.sp
+                            )
+                        }
                         if (result.fatigueReport.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(

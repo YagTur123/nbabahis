@@ -13,5 +13,6 @@ data class PredictionResult(
     val stakesReport: String = "",
     val tacticalReport: String = "",
     val fatigueReport: String = "",
+    val defenderReport: String = "",
     val predictions: List<StatPrediction>
 )

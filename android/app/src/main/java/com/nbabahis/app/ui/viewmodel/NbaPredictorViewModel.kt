@@ -23,6 +23,7 @@ data class UiState(
     val selectedPlayer: NbaPlayer? = null,
     val playerPrediction: PredictionResult? = null,
     val scanNightResults: List<PredictionResult> = emptyList(),
+    val backtestReport: com.nbabahis.app.domain.engine.BacktestReport? = null,
     val statFilter: String = "ALL", // "ALL", "PTS", "REB", "AST", "3PM", "PRA", "DEF"
     val isLoading: Boolean = false,
     val progressMessage: String = "",
@@ -119,9 +120,12 @@ class NbaPredictorViewModel(
         _uiState.update { it.copy(selectedPlayer = player, isLoading = true, progressMessage = "${player.name} istatistik modelleri çalıştırılıyor...") }
 
         viewModelScope.launch {
+            val oppTeamId = if (isHome) game.awayTeamId else game.homeTeamId
+            val oppRoster = repository.getRoster(oppTeamId, oppAbbr)
             val pred = repository.predictForPlayer(
                 player = player,
                 teamRoster = _uiState.value.teamRoster,
+                opponentRoster = oppRoster,
                 opponentAbbr = oppAbbr,
                 isHome = isHome,
                 targetDate = _uiState.value.selectedDate
@@ -155,6 +159,35 @@ class NbaPredictorViewModel(
 
     fun setFilter(filter: String) {
         _uiState.update { it.copy(statFilter = filter) }
+    }
+
+    fun runBacktest() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, progressMessage = "Geçmiş maç sonuçları ve modeller doğrulanıyor...") }
+            val predictions = if (_uiState.value.scanNightResults.isNotEmpty()) {
+                _uiState.value.scanNightResults
+            } else {
+                repository.scanNightPredictions(_uiState.value.games)
+            }
+
+            val actuals = mutableMapOf<Int, com.nbabahis.app.data.model.PlayerGameLog>()
+            for (pred in predictions) {
+                val logs = repository.getPlayerLogs(pred.player)
+                if (logs.isNotEmpty()) {
+                    actuals[pred.player.playerId] = logs.first()
+                }
+            }
+
+            val report = com.nbabahis.app.domain.engine.BacktestTrackerEngine.evaluateBacktest(predictions, actuals)
+            _uiState.update {
+                it.copy(
+                    backtestReport = report,
+                    scanNightResults = predictions,
+                    isLoading = false,
+                    progressMessage = ""
+                )
+            }
+        }
     }
 
     fun clearSelection() {
