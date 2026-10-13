@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">NBA Predictor</string>
+    <string name="app_subtitle">Native NBA AI Projection Engine</string>
+    <string name="nav_games">Maçlar</string>
+    <string name="nav_scan">Geceyi Tara</string>
+    <string name="nav_saved">Kayıtlılar</string>
+</resources>
