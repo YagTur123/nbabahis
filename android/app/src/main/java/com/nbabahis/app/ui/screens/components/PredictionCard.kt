@@ -108,7 +108,46 @@ fun PredictionCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // Dynamic Context & Tactical Briefing
+            if (result.tacticalReport.isNotEmpty() || result.stakesReport.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = SurfaceDark,
+                    border = BorderStroke(0.5.dp, CardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        if (result.stakesReport.isNotEmpty()) {
+                            Text(
+                                text = "🎯 ${result.stakesReport}",
+                                fontSize = 11.sp,
+                                color = AccentGold,
+                                lineHeight = 15.sp
+                            )
+                        }
+                        if (result.tacticalReport.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "🛡️ ${result.tacticalReport}",
+                                fontSize = 11.sp,
+                                color = AccentCyan,
+                                lineHeight = 15.sp
+                            )
+                        }
+                        if (result.fatigueReport.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "✈️ ${result.fatigueReport}",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Predictions Grid / List
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

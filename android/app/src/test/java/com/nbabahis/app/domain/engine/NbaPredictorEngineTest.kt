@@ -101,4 +101,25 @@ class NbaPredictorEngineTest {
         assertTrue(rebPred!!.predictedValue > 0.0)
         assertTrue(astPred!!.predictedValue > 0.0)
     }
+
+    @Test
+    fun testDynamicTacticalAndStakesImpact() {
+        val player = NbaPlayer(playerId = 1629029, name = "Luka Doncic", teamAbbr = "DAL", position = "PG")
+        val history = createSampleHistory(33.0, 9.0, 10.0)
+
+        val result = NbaPredictorEngine.predictPlayer(
+            player = player,
+            history = history,
+            teamRoster = listOf(player),
+            teamStats = TeamStats(teamAbbr = "DAL", pace = 101.0, avgMargin = 3.5),
+            opponentStats = TeamStats(teamAbbr = "MIA", pace = 96.0, avgMargin = 1.8), // Miami uses BLITZ/TRAP
+            isHome = true,
+            targetDate = LocalDate.now()
+        )
+
+        assertNotNull(result)
+        assertTrue("Taktiksel rapor boş olmamalıdır", result!!.tacticalReport.isNotEmpty())
+        assertTrue("Oyun önemi raporu boş olmamalıdır", result.stakesReport.isNotEmpty())
+        assertTrue("Yolculuk raporu boş olmamalıdır", result.fatigueReport.isNotEmpty())
+    }
 }

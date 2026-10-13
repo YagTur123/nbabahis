@@ -6,6 +6,7 @@ import com.nbabahis.app.data.model.TeamStats
 import com.nbabahis.app.domain.model.*
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -14,7 +15,6 @@ object NbaPredictorEngine {
     private const val MIN_GAMES_REQUIRED = 5
     private const val MIN_MINUTES_THRESHOLD = 12.0
 
-    // Floor limits for realistic NBA projections
     private val FLOORS = mapOf(
         "PTS" to 4.0,
         "REB" to 1.5,
@@ -38,7 +38,6 @@ object NbaPredictorEngine {
     ): PredictionResult? {
         if (history.size < MIN_GAMES_REQUIRED) return null
 
-        // Check if player is strictly OUT
         if (player.injuryStatus?.contains("OUT", ignoreCase = true) == true) {
             return null
         }
@@ -54,34 +53,59 @@ object NbaPredictorEngine {
         }
         val restDays = ChronoUnit.DAYS.between(lastDate, targetDate).toInt().coerceAtLeast(0)
 
-        // 1. Travel & Altitude Fatigue
-        val fatigueFactor = TravelFatigueCalculator.calculateFatigue(
-            teamAbbr = player.teamAbbr,
-            isHome = isHome,
-            oppAbbr = opponentStats?.teamAbbr ?: "",
-            history = history,
+        // 1. Dinamik Sirkadiyen Ritim, Saat Dilimi & Deplasman Turu Motoru
+        val consecutiveAwayGames = if (!isHome) {
+            val count = history.take(5).indexOfFirst { it.matchup.contains("vs.") }
+            if (count == -1) 5 else (count + 1)
+        } else {
+            0
+        }
+
+        val lastCity = if (lastGame.matchup.contains("@")) {
+            lastGame.matchup.split(" ").lastOrNull()?.trim() ?: player.teamAbbr
+        } else {
+            player.teamAbbr
+        }
+        val targetCity = if (isHome) player.teamAbbr else (opponentStats?.teamAbbr ?: "OPP")
+
+        val travelContext = TravelContext(
+            originCity = lastCity,
+            destinationCity = targetCity,
+            roadTripGameNumber = consecutiveAwayGames,
+            daysBetweenGames = restDays,
             targetDate = targetDate
         )
+        val circadianFatigue = CircadianTravelEngine.calculateFatigueModifier(travelContext)
+        val fatigueReport = CircadianTravelEngine.getFatigueReport(travelContext)
 
-        // 2. Blowout Risk
+        // 2. Dinamik Oyunun Önemi & Bağlam Motoru (Playoff yarışı, Ezeli rekabet, TV)
+        val isConferenceOrRival = isConferenceRival(player.teamAbbr, opponentStats?.teamAbbr)
+        val stakesContext = GameStakesContext(
+            isRivalryOrConferenceGame = isConferenceOrRival,
+            isNationalTv = true, // Yıldız maçları
+            teamWinPct = if ((teamStats?.avgMargin ?: 0.0) > 0) 0.60 else 0.45,
+            opponentWinPct = if ((opponentStats?.avgMargin ?: 0.0) > 0) 0.58 else 0.42,
+            gamesRemainingInSeason = 18,
+            isReturningFromInjury = player.injuryStatus?.contains("GTD", ignoreCase = true) == true
+        )
+        val stakesImpact = GameStakesEngine.evaluateGameStakes(player, teamStats, opponentStats, stakesContext)
+
+        // 3. Dinamik Taktiksel Eşleşme & Savunma Şeması (Drop vs Switch vs Blitz & Tempo)
+        val tactical = MatchupTacticalEngine.calculateTacticalModifiers(player, teamStats, opponentStats, isHome)
+
+        // 4. Dinamik Blowout Riski
         val ownMargin = teamStats?.avgMargin ?: 0.0
         val oppMargin = opponentStats?.avgMargin ?: 0.0
-        val marginDiff = kotlin.math.abs(ownMargin - oppMargin)
-        val blowoutRisk = marginDiff > 12.0
+        val marginDiff = abs(ownMargin - oppMargin)
+        val blowoutRisk = marginDiff > 11.5
         val blowoutModifier = if (blowoutRisk) {
-            if (avgMinutes >= 32.0) 0.88 else if (avgMinutes >= 28.0) 0.93 else 1.05
+            if (avgMinutes >= 32.0) 0.88 else if (avgMinutes >= 28.0) 0.93 else 1.04
         } else {
             1.0
         }
 
-        // 3. Team Usage Boost (Teammate absences)
+        // 5. Sakatlık Kullanım Kayması (Takım arkadaşı yokluğunda şut payı)
         val usageBoost = UsageShiftCalculator.calculateUsageMultiplier(player, teamRoster)
-
-        // 4. Opponent Defense & Pace Factors
-        val oppDefRating = opponentStats?.defRating ?: 114.0
-        val oppPace = opponentStats?.pace ?: 99.0
-        val defFactor = (oppDefRating / 114.0).coerceIn(0.90, 1.12)
-        val paceFactor = (1.0 + ((oppPace - 99.0) / 99.0) * 0.45).coerceIn(0.92, 1.10)
 
         val statTypes = listOf(
             Triple("PTS", "Sayı", { g: PlayerGameLog -> g.pts }),
@@ -96,7 +120,7 @@ object NbaPredictorEngine {
         )
 
         val predictions = statTypes.map { (key, label, extractor) ->
-            projectStat(
+            projectDynamicStat(
                 statKey = key,
                 displayName = label,
                 extractor = extractor,
@@ -104,11 +128,11 @@ object NbaPredictorEngine {
                 player = player,
                 isHome = isHome,
                 restDays = restDays,
-                fatigueFactor = fatigueFactor,
+                circadianFatigue = circadianFatigue,
+                stakesImpact = stakesImpact,
+                tactical = tactical,
                 blowoutModifier = blowoutModifier,
                 usageBoost = usageBoost,
-                defFactor = defFactor,
-                paceFactor = paceFactor,
                 oppStats = opponentStats
             )
         }
@@ -118,14 +142,17 @@ object NbaPredictorEngine {
             opponentAbbr = opponentStats?.teamAbbr ?: "OPP",
             isHome = isHome,
             restDays = restDays,
-            travelFatigueFactor = fatigueFactor,
+            travelFatigueFactor = circadianFatigue,
             blowoutRisk = blowoutRisk,
             blowoutModifier = blowoutModifier,
+            stakesReport = stakesImpact.explanation,
+            tacticalReport = tactical.tacticalBreakdown,
+            fatigueReport = "Yolculuk Katsayısı: ${(circadianFatigue * 100).toInt()}% · Deplasman Maç #${consecutiveAwayGames}",
             predictions = predictions
         )
     }
 
-    private fun projectStat(
+    private fun projectDynamicStat(
         statKey: String,
         displayName: String,
         extractor: (PlayerGameLog) -> Double,
@@ -133,11 +160,11 @@ object NbaPredictorEngine {
         player: NbaPlayer,
         isHome: Boolean,
         restDays: Int,
-        fatigueFactor: Double,
+        circadianFatigue: Double,
+        stakesImpact: StakesImpact,
+        tactical: TacticalModifiers,
         blowoutModifier: Double,
         usageBoost: Double,
-        defFactor: Double,
-        paceFactor: Double,
         oppStats: TeamStats?
     ): StatPrediction {
         val values = history.map(extractor)
@@ -147,10 +174,10 @@ object NbaPredictorEngine {
         val l5Avg = if (l5Values.isNotEmpty()) l5Values.average() else seasonAvg
         val l3Avg = if (l3Values.isNotEmpty()) l3Values.average() else seasonAvg
 
-        // 1. Exponential Weighted Moving Average (EWMA)
+        // 1. Ağırlıklı Hareketli Ortalama (Son form daha baskın)
         var projection = (l3Avg * 0.45) + (l5Avg * 0.35) + (seasonAvg * 0.20)
 
-        // 2. Home vs Away Adjustment
+        // 2. Dinamik Ev / Deplasman Şut Oranları
         val homeSplits = history.filter { it.matchup.contains("vs.") }.map(extractor)
         val awaySplits = history.filter { it.matchup.contains("@") }.map(extractor)
         if (isHome && homeSplits.isNotEmpty() && seasonAvg > 0) {
@@ -161,37 +188,52 @@ object NbaPredictorEngine {
             projection *= awayRatio
         }
 
-        // 3. Rest Days Adjustment
-        if (restDays <= 1) {
-            projection *= 0.94 // B2B fatigue
-        } else if (restDays >= 3) {
-            projection *= 1.025 // Fresh legs
+        // 3. Sirkadiyen Ritim, Jetlag ve Şehir Yorgunluğu
+        projection *= circadianFatigue
+
+        // 4. Oyunun Önemi & Dakika Dağılımı Çarpanı
+        projection *= stakesImpact.projectedMinutesModifier
+
+        // İstatistiğe göre taktiksel ve bağlamsal yoğunluk
+        when (statKey) {
+            "PTS" -> {
+                projection *= stakesImpact.scoringIntensityModifier
+                projection *= tactical.ptsModifier
+            }
+            "3PM" -> {
+                projection *= stakesImpact.scoringIntensityModifier
+                projection *= tactical.threesModifier
+            }
+            "AST" -> {
+                projection *= tactical.astModifier
+            }
+            "REB" -> {
+                projection *= tactical.rebModifier
+            }
+            "PRA" -> {
+                projection *= ((tactical.ptsModifier + tactical.rebModifier + tactical.astModifier) / 3.0)
+            }
         }
 
-        // 4. Modifiers
-        projection *= fatigueFactor
+        // 5. Dinamik Maç Temposu (Possessions Çarpanı)
+        projection *= tactical.paceMultiplier
+
+        // 6. Blowout ve Kullanım Kayması
         projection *= blowoutModifier
         projection *= usageBoost
 
-        // 5. Opponent Defensive Matchup by Position (DvP)
+        // 7. Pozisyon Bazlı Rakip Savunma Etkisi (DvP)
         val isGuard = player.position.contains("G", ignoreCase = true)
         val isCenter = player.position.contains("C", ignoreCase = true)
-
-        var statDefFactor = defFactor
         if (statKey == "REB" && isCenter && oppStats != null) {
             val rebRatio = (oppStats.oppReb / 43.5).coerceIn(0.88, 1.15)
-            statDefFactor = rebRatio
-        } else if (statKey == "3PM" && isGuard) {
-            statDefFactor = (defFactor * 1.05).coerceIn(0.88, 1.15)
+            projection *= rebRatio
         }
-        projection *= statDefFactor
-        projection *= paceFactor
 
-        // Floor validation
         val floorVal = FLOORS[statKey] ?: 0.5
         projection = projection.coerceAtLeast(floorVal)
 
-        // Trend calculation
+        // Trend analizi
         val pctDiff = if (seasonAvg > 0) ((l5Avg - seasonAvg) / seasonAvg) * 100.0 else 0.0
         val trendType = when {
             pctDiff >= 20.0 -> TrendType.HOT
@@ -201,11 +243,13 @@ object NbaPredictorEngine {
             else -> TrendType.NEUTRAL
         }
 
-        // Confidence calculation (consistency / variance)
+        // Standart Sapma ve Güven Skoru
         val variance = values.map { (it - seasonAvg) * (it - seasonAvg) }.average()
         val stdDev = sqrt(variance)
         val cv = if (seasonAvg > 0) stdDev / seasonAvg else 1.0
-        // Probability thresholds (Over / Under distribution)
+        val confidenceScore = ((1.0 - (cv * 0.45).coerceIn(0.0, 0.6)) * 100).roundToInt().coerceIn(45, 96)
+
+        // Poisson & Normal Gauss CDF Alt/Üst Olasılıkları
         val thresholds = ProbabilityEngine.getProbableThresholds(
             statKey = statKey,
             projection = (projection * 10.0).roundToInt() / 10.0,
@@ -224,5 +268,12 @@ object NbaPredictorEngine {
             confidence = confidenceScore,
             thresholds = thresholds
         )
+    }
+
+    private fun isConferenceRival(team1: String?, team2: String?): Boolean {
+        if (team1 == null || team2 == null) return false
+        val west = setOf("LAL", "GSW", "LAC", "PHX", "SAC", "DEN", "MIN", "OKC", "POR", "UTA", "DAL", "HOU", "MEM", "NOP", "SAS")
+        val east = setOf("BOS", "BKN", "NYK", "PHI", "TOR", "CHI", "CLE", "DET", "IND", "MIL", "ATL", "CHA", "MIA", "ORL", "WAS")
+        return (team1 in west && team2 in west) || (team1 in east && team2 in east)
     }
 }

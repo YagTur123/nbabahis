@@ -7,8 +7,11 @@ data class PredictionResult(
     val opponentAbbr: String,
     val isHome: Boolean,
     val restDays: Int,
-    val travelFatigueFactor: Double, // örn: 0.94
+    val travelFatigueFactor: Double,
     val blowoutRisk: Boolean,
     val blowoutModifier: Double,
+    val stakesReport: String = "",
+    val tacticalReport: String = "",
+    val fatigueReport: String = "",
     val predictions: List<StatPrediction>
 )
