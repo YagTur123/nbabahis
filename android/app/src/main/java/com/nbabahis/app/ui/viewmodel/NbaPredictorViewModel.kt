@@ -55,6 +55,9 @@ class NbaPredictorViewModel(
                         progressMessage = ""
                     )
                 }
+                if (games.isNotEmpty()) {
+                    selectGame(games.first())
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -73,6 +76,9 @@ class NbaPredictorViewModel(
             _uiState.update { it.copy(isLoading = true, progressMessage = "$dateStr maçları yükleniyor...") }
             val games = repository.getGames(dateStr)
             _uiState.update { it.copy(games = games, isLoading = false, progressMessage = "") }
+            if (games.isNotEmpty()) {
+                selectGame(games.first())
+            }
         }
     }
 
