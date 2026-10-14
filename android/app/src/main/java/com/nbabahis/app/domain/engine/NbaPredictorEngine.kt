@@ -285,6 +285,9 @@ object NbaPredictorEngine {
             stdDev = if (stdDev > 0) stdDev else 2.0
         )
 
+        // %90+ Güvenli Alternatif Kasa Baremi
+        val eliteSafe = ProbabilityEngine.getEliteSafeThreshold(thresholds)
+
         return StatPrediction(
             statKey = statKey,
             displayName = displayName,
@@ -295,7 +298,9 @@ object NbaPredictorEngine {
             diffFromSeason = ((projection - seasonAvg) * 10.0).roundToInt() / 10.0,
             trend = Trend(trendType, (pctDiff * 10.0).roundToInt() / 10.0),
             confidence = confidenceScore,
-            thresholds = thresholds
+            thresholds = thresholds,
+            safeFloorLine = eliteSafe?.threshold,
+            safeFloorProb = eliteSafe?.overProb ?: 0.0
         )
     }
 

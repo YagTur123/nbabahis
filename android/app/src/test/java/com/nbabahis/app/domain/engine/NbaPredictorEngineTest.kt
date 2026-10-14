@@ -228,4 +228,35 @@ class NbaPredictorEngineTest {
             assertEquals("Tüm baremler .5 buçuklu standart olmalıdır", 0.5, decimal, 0.001)
         }
     }
+
+    @Test
+    fun testEliteSafeFloorThreshold() {
+        val player = NbaPlayer(playerId = 1629029, name = "Luka Doncic", teamAbbr = "DAL", position = "G")
+        val history = createSampleHistory(32.0, 9.0, 10.0)
+
+        val result = NbaPredictorEngine.predictPlayer(
+            player = player,
+            history = history,
+            teamRoster = listOf(player),
+            teamStats = TeamStats(teamAbbr = "DAL"),
+            opponentStats = TeamStats(teamAbbr = "GSW"),
+            isHome = true
+        )
+
+        assertNotNull(result)
+        val ptsPred = result!!.predictions.firstOrNull { it.statKey == "PTS" }
+        assertNotNull(ptsPred)
+        assertNotNull("Luka Doncic için %90+ güvenli kasa baremi bulunmalıdır", ptsPred!!.safeFloorLine)
+        assertTrue("%90+ kasa baremi projeksiyondan küçük olmalıdır", ptsPred.safeFloorLine!! < ptsPred.predictedValue)
+        assertTrue("%90+ kasa baremi olasılığı en az %88 olmalıdır", ptsPred.safeFloorProb >= 0.88)
+    }
+
+    @Test
+    fun testProbabilityEngineEliteValue() {
+        val thresholds = ProbabilityEngine.getProbableThresholds("PTS", 26.5, 4.5)
+        val elite = ProbabilityEngine.getEliteSafeThreshold(thresholds)
+        assertNotNull("Elit kasa baremi bulunabilmelidir", elite)
+        assertTrue("Elit barem olasılığı >= 0.88 olmalıdır", elite!!.overProb >= 0.88)
+        assertTrue("isEliteValue bayrağı true olmalıdır", elite.isEliteValue)
+    }
 }

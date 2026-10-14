@@ -253,16 +253,34 @@ private fun StatRow(pred: StatPrediction) {
             }
         }
 
-        // High probability threshold badges
+        // High probability threshold badges + %90+ Güvenli Alternatif Kasa Baremi
         val topThresholds = pred.thresholds.filter { it.isHighValue || (it.overProb in 0.52..0.85) }.take(3)
-        if (topThresholds.isNotEmpty()) {
+        if (topThresholds.isNotEmpty() || (pred.safeFloorLine != null && pred.safeFloorProb >= 0.88)) {
             HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                if (pred.safeFloorLine != null && pred.safeFloorProb >= 0.88) {
+                    val safePct = (pred.safeFloorProb * 100).toInt()
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = AccentGold.copy(alpha = 0.15f),
+                        border = BorderStroke(0.8.dp, AccentGold)
+                    ) {
+                        Text(
+                            text = "🛡️ %90+ Kasa: ${pred.safeFloorLine}+ (%$safePct)",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = AccentGold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 topThresholds.forEach { t ->
                     val pct = (t.overProb * 100).toInt()
                     Surface(

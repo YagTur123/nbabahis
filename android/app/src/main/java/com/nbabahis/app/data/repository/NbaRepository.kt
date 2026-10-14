@@ -30,7 +30,7 @@ class NbaRepository(
     suspend fun getRoster(teamId: Int, teamAbbr: String): List<NbaPlayer> = withContext(Dispatchers.IO) {
         rosterCache[teamId]?.let { return@withContext it }
 
-        var players = api.getTeamRoster(teamId)
+        var players = api.getTeamRoster(teamId, teamAbbr)
         if (players.isEmpty()) {
             players = getSampleRoster(teamAbbr)
         }
@@ -50,12 +50,16 @@ class NbaRepository(
     suspend fun getPlayerLogs(player: NbaPlayer): List<PlayerGameLog> = withContext(Dispatchers.IO) {
         playerLogsCache[player.playerId]?.let { return@withContext it }
 
-        var logs = api.getPlayerGameLogs(player.playerId)
-        if (logs.isEmpty()) {
-            logs = generateRealisticLogs(player)
+        val logs = api.getPlayerGameLogs(player.playerId)
+        if (logs.isNotEmpty()) {
+            playerLogsCache[player.playerId] = logs
+            return@withContext logs
         }
-        playerLogsCache[player.playerId] = logs
-        logs
+
+        // İnternet kesintisi durumunda deterministik gerçekçi sezon ortalaması geçmişi
+        val fallbackLogs = getDeterministicCareerLogs(player)
+        playerLogsCache[player.playerId] = fallbackLogs
+        fallbackLogs
     }
 
     suspend fun predictForPlayer(
@@ -150,81 +154,151 @@ class NbaRepository(
         "LAC" to TeamStats("LAC", defRating = 112.1, pace = 97.3, rebPct = 0.505, avgMargin = 3.3)
     )
 
-    private fun getSampleRoster(teamAbbr: String): List<NbaPlayer> = when (teamAbbr) {
+    private fun getSampleRoster(teamAbbr: String): List<NbaPlayer> = when (teamAbbr.uppercase()) {
         "LAL" -> listOf(
-            NbaPlayer(2544, "LeBron James", "LAL", "F", "23"),
-            NbaPlayer(203076, "Anthony Davis", "LAL", "C", "3"),
-            NbaPlayer(1629636, "Austin Reaves", "LAL", "G", "15"),
-            NbaPlayer(1626156, "D'Angelo Russell", "LAL", "G", "1"),
-            NbaPlayer(1629060, "Rui Hachimura", "LAL", "F", "28")
+            NbaPlayer(1966, "LeBron James", "LAL", "F", "23"),
+            NbaPlayer(6583, "Anthony Davis", "LAL", "C", "3"),
+            NbaPlayer(4066457, "Austin Reaves", "LAL", "G", "15"),
+            NbaPlayer(3136195, "D'Angelo Russell", "LAL", "G", "1"),
+            NbaPlayer(4066648, "Rui Hachimura", "LAL", "F", "28")
         )
         "BOS" -> listOf(
-            NbaPlayer(1628369, "Jayson Tatum", "BOS", "F", "0"),
-            NbaPlayer(1627759, "Jaylen Brown", "BOS", "G-F", "7"),
-            NbaPlayer(1628401, "Derrick White", "BOS", "G", "9"),
-            NbaPlayer(204001, "Kristaps Porzingis", "BOS", "C", "8"),
-            NbaPlayer(201950, "Jrue Holiday", "BOS", "G", "4")
+            NbaPlayer(4065648, "Jayson Tatum", "BOS", "F", "0"),
+            NbaPlayer(3917376, "Jaylen Brown", "BOS", "G", "7"),
+            NbaPlayer(3078576, "Derrick White", "BOS", "G", "9"),
+            NbaPlayer(3102531, "Kristaps Porzingis", "BOS", "C", "8"),
+            NbaPlayer(3995, "Jrue Holiday", "BOS", "G", "4")
         )
-        "GSW" -> listOf(
-            NbaPlayer(201939, "Stephen Curry", "GSW", "G", "30"),
-            NbaPlayer(203110, "Draymond Green", "GSW", "F", "23"),
-            NbaPlayer(1630228, "Jonathan Kuminga", "GSW", "F", "0"),
-            NbaPlayer(1631218, "Brandin Podziemski", "GSW", "G", "2"),
-            NbaPlayer(202691, "Klay Thompson", "GSW", "G", "11")
+        "GSW", "GS" -> listOf(
+            NbaPlayer(3975, "Stephen Curry", "GSW", "G", "30"),
+            NbaPlayer(6589, "Draymond Green", "GSW", "F", "23"),
+            NbaPlayer(4432820, "Jonathan Kuminga", "GSW", "F", "0"),
+            NbaPlayer(4683748, "Brandin Podziemski", "GSW", "G", "2"),
+            NbaPlayer(3059319, "Andrew Wiggins", "GSW", "F", "22")
         )
         "DEN" -> listOf(
-            NbaPlayer(203999, "Nikola Jokic", "DEN", "C", "15"),
-            NbaPlayer(1627750, "Jamal Murray", "DEN", "G", "27"),
-            NbaPlayer(1629008, "Michael Porter Jr.", "DEN", "F", "1"),
-            NbaPlayer(203932, "Aaron Gordon", "DEN", "F", "50"),
-            NbaPlayer(1631128, "Christian Braun", "DEN", "G", "0")
+            NbaPlayer(3112335, "Nikola Jokic", "DEN", "C", "15"),
+            NbaPlayer(3936299, "Jamal Murray", "DEN", "G", "27"),
+            NbaPlayer(4278104, "Michael Porter Jr.", "DEN", "F", "1"),
+            NbaPlayer(3064290, "Aaron Gordon", "DEN", "F", "50"),
+            NbaPlayer(4431767, "Christian Braun", "DEN", "G", "0")
         )
         "DAL" -> listOf(
-            NbaPlayer(1629029, "Luka Doncic", "DAL", "G", "77"),
-            NbaPlayer(202681, "Kyrie Irving", "DAL", "G", "11"),
-            NbaPlayer(1629622, "PJ Washington", "DAL", "F", "25"),
-            NbaPlayer(1629684, "Daniel Gafford", "DAL", "C", "21"),
-            NbaPlayer(1641705, "Dereck Lively II", "DAL", "C", "2")
+            NbaPlayer(3945274, "Luka Doncic", "DAL", "G", "77"),
+            NbaPlayer(6442, "Kyrie Irving", "DAL", "G", "11"),
+            NbaPlayer(6475, "Klay Thompson", "DAL", "G", "31"),
+            NbaPlayer(4278078, "PJ Washington", "DAL", "F", "25"),
+            NbaPlayer(4277844, "Daniel Gafford", "DAL", "C", "21")
+        )
+        "OKC" -> listOf(
+            NbaPlayer(3244, "Shai Gilgeous-Alexander", "OKC", "G", "2"),
+            NbaPlayer(4432808, "Chet Holmgren", "OKC", "C", "7"),
+            NbaPlayer(4432810, "Jalen Williams", "OKC", "F", "8"),
+            NbaPlayer(4431687, "Lu Dort", "OKC", "G", "5"),
+            NbaPlayer(3059319, "Alex Caruso", "OKC", "G", "9")
+        )
+        "NYK", "NY" -> listOf(
+            NbaPlayer(3934672, "Jalen Brunson", "NYK", "G", "11"),
+            NbaPlayer(3136193, "Karl-Anthony Towns", "NYK", "C", "32"),
+            NbaPlayer(3908809, "Mikal Bridges", "NYK", "G", "25"),
+            NbaPlayer(4066387, "OG Anunoby", "NYK", "F", "8"),
+            NbaPlayer(3062679, "Josh Hart", "NYK", "G", "3")
+        )
+        "MIL" -> listOf(
+            NbaPlayer(3032977, "Giannis Antetokounmpo", "MIL", "F", "34"),
+            NbaPlayer(6606, "Damian Lillard", "MIL", "G", "0"),
+            NbaPlayer(6609, "Khris Middleton", "MIL", "F", "22"),
+            NbaPlayer(3448, "Brook Lopez", "MIL", "C", "11"),
+            NbaPlayer(3064440, "Bobby Portis", "MIL", "F", "9")
+        )
+        "MIN" -> listOf(
+            NbaPlayer(4594268, "Anthony Edwards", "MIN", "G", "5"),
+            NbaPlayer(3064514, "Julius Randle", "MIN", "F", "30"),
+            NbaPlayer(3032976, "Rudy Gobert", "MIN", "C", "27"),
+            NbaPlayer(4431687, "Jaden McDaniels", "MIN", "F", "3"),
+            NbaPlayer(3195, "Mike Conley", "MIN", "G", "10")
+        )
+        "PHX" -> listOf(
+            NbaPlayer(3202, "Kevin Durant", "PHX", "F", "35"),
+            NbaPlayer(3136193, "Devin Booker", "PHX", "G", "1"),
+            NbaPlayer(6580, "Bradley Beal", "PHX", "G", "3"),
+            NbaPlayer(3102530, "Jusuf Nurkic", "PHX", "C", "20"),
+            NbaPlayer(3135046, "Tyus Jones", "PHX", "G", "21")
+        )
+        "CLE" -> listOf(
+            NbaPlayer(3908809, "Donovan Mitchell", "CLE", "G", "45"),
+            NbaPlayer(4395612, "Darius Garland", "CLE", "G", "10"),
+            NbaPlayer(4432158, "Evan Mobley", "CLE", "F", "4"),
+            NbaPlayer(4066328, "Jarrett Allen", "CLE", "C", "31"),
+            NbaPlayer(4066636, "Max Strus", "CLE", "G", "1")
+        )
+        "SAS", "SA" -> listOf(
+            NbaPlayer(5104157, "Victor Wembanyama", "SAS", "C", "1"),
+            NbaPlayer(2779, "Chris Paul", "SAS", "G", "3"),
+            NbaPlayer(4395630, "Devin Vassell", "SAS", "G", "24"),
+            NbaPlayer(6578, "Harrison Barnes", "SAS", "F", "40"),
+            NbaPlayer(4433134, "Jeremy Sochan", "SAS", "F", "10")
+        )
+        "MIA" -> listOf(
+            NbaPlayer(6430, "Jimmy Butler", "MIA", "F", "22"),
+            NbaPlayer(4066261, "Bam Adebayo", "MIA", "C", "13"),
+            NbaPlayer(4395628, "Tyler Herro", "MIA", "G", "14"),
+            NbaPlayer(3074752, "Terry Rozier", "MIA", "G", "2"),
+            NbaPlayer(4432174, "Jaime Jaquez Jr.", "MIA", "G", "11")
+        )
+        "HOU" -> listOf(
+            NbaPlayer(4871144, "Alperen Sengun", "HOU", "C", "28"),
+            NbaPlayer(4432811, "Jalen Green", "HOU", "G", "4"),
+            NbaPlayer(2991230, "Fred VanVleet", "HOU", "G", "5"),
+            NbaPlayer(4432158, "Jabari Smith Jr.", "HOU", "F", "10"),
+            NbaPlayer(3155535, "Dillon Brooks", "HOU", "F", "9")
         )
         else -> listOf(
             NbaPlayer(1001, "$teamAbbr Star Guard", teamAbbr, "G", "1"),
             NbaPlayer(1002, "$teamAbbr Forward", teamAbbr, "F", "2"),
-            NbaPlayer(1003, "$teamAbbr Big Center", teamAbbr, "C", "3"),
-            NbaPlayer(1004, "$teamAbbr Shooter", teamAbbr, "G", "4"),
-            NbaPlayer(1005, "$teamAbbr Wing", teamAbbr, "F", "5")
+            NbaPlayer(1003, "$teamAbbr Center", teamAbbr, "C", "3")
         )
     }
 
-    private fun generateRealisticLogs(player: NbaPlayer): List<PlayerGameLog> {
-        val basePts = when (player.name) {
-            "Luka Doncic" -> 33.5
-            "Nikola Jokic" -> 26.5
-            "Jayson Tatum" -> 27.0
-            "Stephen Curry" -> 26.5
-            "LeBron James" -> 25.0
-            "Anthony Davis" -> 24.5
+    private fun getDeterministicCareerLogs(player: NbaPlayer): List<PlayerGameLog> {
+        val basePts = when {
+            player.name.contains("Luka", true) -> 33.5
+            player.name.contains("Jokic", true) -> 26.5
+            player.name.contains("Giannis", true) -> 30.5
+            player.name.contains("Tatum", true) -> 27.0
+            player.name.contains("Curry", true) -> 26.5
+            player.name.contains("LeBron", true) -> 25.0
+            player.name.contains("Davis", true) -> 24.5
+            player.name.contains("Edwards", true) -> 26.0
+            player.name.contains("Brunson", true) -> 28.5
+            player.name.contains("Gilgeous", true) -> 30.0
+            player.name.contains("Sengun", true) -> 21.0
+            player.name.contains("Wembanyama", true) -> 22.0
             else -> 18.0
         }
-        val baseReb = when (player.position) {
-            "C" -> 12.0
-            "F" -> 7.5
+        val baseReb = when {
+            player.position.contains("C", true) -> 12.0
+            player.position.contains("F", true) -> 7.5
             else -> 4.5
         }
         val baseAst = when {
-            player.name == "Nikola Jokic" -> 9.0
-            player.name == "Luka Doncic" -> 9.8
-            player.position.contains("G") -> 6.5
+            player.name.contains("Jokic", true) -> 9.0
+            player.name.contains("Luka", true) -> 9.8
+            player.position.contains("G", true) -> 6.5
             else -> 3.0
         }
 
+        // Deterministik periyodik varyans deseni (Math.random yerine gerçekçi dalgalanma)
+        val cycleMultipliers = doubleArrayOf(1.08, 0.94, 1.12, 0.88, 1.02, 0.96, 1.15, 0.90, 1.04, 0.92, 1.06, 0.98)
         val logs = mutableListOf<PlayerGameLog>()
-        for (i in 0 until 12) {
-            val randomFactor = 0.85 + (Math.random() * 0.3) // 0.85 - 1.15
-            val pts = (basePts * randomFactor)
-            val reb = (baseReb * (0.8 + Math.random() * 0.4))
-            val ast = (baseAst * (0.8 + Math.random() * 0.4))
-            val isHomeMatch = i % 2 == 0
-            val matchup = if (isHomeMatch) "${player.teamAbbr} vs. OPP" else "${player.teamAbbr} @ OPP"
+
+        for (i in cycleMultipliers.indices) {
+            val mult = cycleMultipliers[i]
+            val pts = ((basePts * mult) * 10.0).toInt() / 10.0
+            val reb = ((baseReb * (2.0 - mult * 0.9)) * 10.0).toInt() / 10.0
+            val ast = ((baseAst * mult) * 10.0).toInt() / 10.0
+            val isHome = i % 2 == 0
+            val matchup = if (isHome) "${player.teamAbbr} vs. OPP" else "${player.teamAbbr} @ OPP"
 
             logs.add(
                 PlayerGameLog(
@@ -232,13 +306,13 @@ class NbaRepository(
                     gameDate = LocalDate.now().minusDays((i * 2 + 1).toLong()).toString(),
                     matchup = matchup,
                     min = 34.0,
-                    pts = (pts * 10).toInt() / 10.0,
-                    reb = (reb * 10).toInt() / 10.0,
-                    ast = (ast * 10).toInt() / 10.0,
-                    stl = (1.2 * randomFactor),
-                    blk = (0.8 * randomFactor),
-                    fg3m = if (player.position.contains("G")) (3.2 * randomFactor) else 1.0,
-                    tov = 2.5
+                    pts = pts,
+                    reb = reb,
+                    ast = ast,
+                    stl = if (player.position.contains("G")) 1.4 else 0.8,
+                    blk = if (player.position.contains("C")) 2.2 else 0.5,
+                    fg3m = if (player.position.contains("G")) 3.0 else 1.0,
+                    tov = 2.4
                 )
             )
         }

@@ -12,5 +12,7 @@ data class StatPrediction(
     val diffFromSeason: Double, // predicted - seasonAvg
     val trend: Trend,
     val confidence: Int, // 0-100%
-    val thresholds: List<ThresholdProb> = emptyList()
+    val thresholds: List<ThresholdProb> = emptyList(),
+    val safeFloorLine: Double? = null,
+    val safeFloorProb: Double = 0.0
 )
