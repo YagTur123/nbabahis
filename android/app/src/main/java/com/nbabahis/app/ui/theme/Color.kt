@@ -6,11 +6,16 @@ val BgDark = Color(0xFF0B0E14)
 val SurfaceDark = Color(0xFF151A23)
 val CardDark = Color(0xFF1C222E)
 val CardBorder = Color(0xFF283142)
+val CardHover = Color(0xFF232A39)
 
 val AccentGreen = Color(0xFF00E676)
 val AccentCyan = Color(0xFF00E5FF)
 val AccentPurple = Color(0xFF7C4DFF)
 val AccentGold = Color(0xFFFFD700)
+
+val GoldGlow = Color(0x33FFD700)
+val GreenGlow = Color(0x3300E676)
+val CyanGlow = Color(0x3300E5FF)
 
 val HotRed = Color(0xFFFF5252)
 val ColdBlue = Color(0xFF40C4FF)
