@@ -198,7 +198,7 @@ fun ScanNightScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(filteredResults, key = { it.player.id }) { pred ->
+                    items(filteredResults, key = { it.player.playerId }) { pred ->
                         PredictionCard(
                             result = pred,
                             filter = activeFilter

@@ -58,7 +58,7 @@ fun SafeSlateScreen(
                 if (pred.safeFloorLine != null && pred.safeFloorProb >= 0.88) {
                     list.add(
                         SafeBetOption(
-                            id = "${res.player.id}_${pred.statKey}",
+                            id = "${res.player.playerId}_${pred.statKey}",
                             player = res.player,
                             opponentAbbr = res.opponentAbbr,
                             isHome = res.isHome,
