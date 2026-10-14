@@ -76,11 +76,11 @@ object GameStakesEngine {
         }
 
         // 4. Opponent defensive profile impact
-        oppStats?.let {
-            if (it.defRating < 111.0) {
+        if (oppStats != null) {
+            if (oppStats.defRating < 111.0) {
                 scoringIntensityModifier *= 0.95
                 explanations.add("Elit savunma rakip (DefRtg < 111): -5% skor hacmi")
-            } else if (it.defRating > 117.0) {
+            } else if (oppStats.defRating > 117.0) {
                 scoringIntensityModifier *= 1.05
                 explanations.add("Zayıf savunma rakip (DefRtg > 117): +5% skor hacmi")
             }
