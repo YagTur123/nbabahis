@@ -136,6 +136,24 @@ fun BacktestScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = AccentGreen
                                     )
+                                    if (report.eliteSafeHitRatePct > 0.0) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = AccentGold.copy(alpha = 0.15f),
+                                            border = BorderStroke(0.8.dp, AccentGold)
+                                        ) {
+                                            Text(
+                                                text = "🛡️ %90+ Kasa Baremleri: %${report.eliteSafeHitRatePct}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = AccentGold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "${report.evaluatedCount} Maç Değerlendirildi",
                                         style = MaterialTheme.typography.labelSmall,

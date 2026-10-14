@@ -185,6 +185,7 @@ class NbaPredictorEngineTest {
         assertEquals(1, report.evaluatedCount)
         assertTrue("Doğrulama karnesi A veya B olmalıdır", report.accuracyGrade in listOf("A+", "A", "B+", "B"))
         assertTrue("PTS için MAE hesaplanmalıdır", report.metricsByStat.containsKey("PTS"))
+        assertTrue("Kasa baremleri isabet oranı sıfırdan büyük veya eşit olmalıdır", report.eliteSafeHitRatePct >= 0.0)
     }
 
     @Test

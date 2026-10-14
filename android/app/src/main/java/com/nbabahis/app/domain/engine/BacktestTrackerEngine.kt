@@ -19,6 +19,7 @@ data class StatBacktestMetrics(
 data class BacktestReport(
     val evaluatedCount: Int,
     val overallHitRatePct: Double,
+    val eliteSafeHitRatePct: Double = 0.0,
     val metricsByStat: Map<String, StatBacktestMetrics>,
     val accuracyGrade: String,
     val calibrationNotes: List<String>
@@ -47,6 +48,7 @@ object BacktestTrackerEngine {
         val statErrors = mutableMapOf<String, MutableList<Double>>()
         val statBiases = mutableMapOf<String, MutableList<Double>>()
         val statThresholdHits = mutableMapOf<String, MutableList<Boolean>>()
+        val eliteHits = mutableListOf<Boolean>()
 
         validPredictions.forEach { prediction ->
             val actual = actualBoxScores[prediction.player.playerId] ?: return@forEach
@@ -76,6 +78,12 @@ object BacktestTrackerEngine {
                 statPred.thresholds.filter { it.isHighValue }.forEach { t ->
                     val isHit = actualValue > t.threshold
                     statThresholdHits.getOrPut(statKey) { mutableListOf() }.add(isHit)
+                }
+
+                // %90+ Güvenli Alternatif Kasa Baremi kontrolü
+                if (statPred.safeFloorLine != null && statPred.safeFloorProb >= 0.88) {
+                    val isEliteHit = actualValue >= statPred.safeFloorLine
+                    eliteHits.add(isEliteHit)
                 }
             }
         }
@@ -138,9 +146,16 @@ object BacktestTrackerEngine {
             calibrationNotes.add("Tüm temel istatistiklerde model sapması dengeli ve optimum aralıkta.")
         }
 
+        val eliteSafeHitRate = if (eliteHits.isNotEmpty()) {
+            round2((eliteHits.count { it }.toDouble() / eliteHits.size) * 100.0)
+        } else {
+            0.0
+        }
+
         return BacktestReport(
             evaluatedCount = validPredictions.size,
             overallHitRatePct = overallHitRate,
+            eliteSafeHitRatePct = eliteSafeHitRate,
             metricsByStat = metricsByStat,
             accuracyGrade = grade,
             calibrationNotes = calibrationNotes
