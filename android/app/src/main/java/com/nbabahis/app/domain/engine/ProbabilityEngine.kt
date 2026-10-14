@@ -7,11 +7,11 @@ import kotlin.math.sqrt
 
 object ProbabilityEngine {
 
-    private const val ERFC_COEFFICIENTS_A = doubleArrayOf(
+    private val ERFC_COEFFICIENTS_A = doubleArrayOf(
         1.0, 0.196854, 0.115194, 0.000344, 0.019527
     )
 
-    private const val ERFC_COEFFICIENTS_B = doubleArrayOf(
+    private val ERFC_COEFFICIENTS_B = doubleArrayOf(
         0.0, 0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429
     )
 
