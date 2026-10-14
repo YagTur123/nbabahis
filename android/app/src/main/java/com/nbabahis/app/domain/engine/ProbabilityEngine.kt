@@ -97,53 +97,52 @@ object ProbabilityEngine {
         projection: Double,
         stdDev: Double
     ): List<ThresholdProb> {
-        require(stdDev >= 0.0) { "Standard deviation must be non-negative" }
+        val sDev = if (stdDev > 1e-6) stdDev else 1.0
+        val baseInt = kotlin.math.floor(projection).toInt()
+        val baseHalf = baseInt + 0.5 // örn. 24.3 için 24.5 buçuklu standart barem
 
         val thresholds = when {
             statKey.contains("pts", ignoreCase = true) -> listOf(
-                projection - 7.5,
-                projection - 4.5,
-                projection - 2.5,
-                projection - 0.5,
-                projection + 0.5,
-                projection + 2.5,
-                projection + 4.5,
-                projection + 7.5
-            )
+                baseHalf - 6.0,
+                baseHalf - 4.0,
+                baseHalf - 2.0,
+                baseHalf,
+                baseHalf + 2.0,
+                baseHalf + 4.0,
+                baseHalf + 6.0
+            ).filter { it > 0.0 }
             statKey.contains("reb", ignoreCase = true) || statKey.contains("trb", ignoreCase = true) -> listOf(
-                projection - 4.5,
-                projection - 2.5,
-                projection - 1.5,
-                projection - 0.5,
-                projection + 0.5,
-                projection + 1.5,
-                projection + 2.5,
-                projection + 4.5
-            )
+                baseHalf - 4.0,
+                baseHalf - 2.0,
+                baseHalf - 1.0,
+                baseHalf,
+                baseHalf + 1.0,
+                baseHalf + 2.0,
+                baseHalf + 4.0
+            ).filter { it > 0.0 }
             statKey.contains("ast", ignoreCase = true) -> listOf(
-                projection - 2.5,
-                projection - 1.5,
-                projection - 0.5,
-                projection + 0.5,
-                projection + 1.5,
-                projection + 2.5
-            )
+                baseHalf - 3.0,
+                baseHalf - 2.0,
+                baseHalf - 1.0,
+                baseHalf,
+                baseHalf + 1.0,
+                baseHalf + 2.0,
+                baseHalf + 3.0
+            ).filter { it > 0.0 }
             statKey.contains("blk", ignoreCase = true) || statKey.contains("stl", ignoreCase = true) || statKey.contains("3pm", ignoreCase = true) -> listOf(
-                0.0,
                 0.5,
                 1.5,
                 2.5,
                 3.5,
                 4.5
-            ).filter { it >= 0.0 }
+            ).filter { it <= (projection + 3.5) }
             else -> listOf(
-                projection - 2.0,
-                projection - 1.0,
-                projection - 0.5,
-                projection + 0.5,
-                projection + 1.0,
-                projection + 2.0
-            )
+                baseHalf - 4.0,
+                baseHalf - 2.0,
+                baseHalf,
+                baseHalf + 2.0,
+                baseHalf + 4.0
+            ).filter { it > 0.0 }
         }.distinct().sorted()
 
         return thresholds.map { threshold ->
@@ -151,12 +150,12 @@ object ProbabilityEngine {
                 statKey.contains("stl", ignoreCase = true) ||
                 statKey.contains("3pm", ignoreCase = true)
             ) {
-                // For count stats, use Poisson CDF for under, then derive over
+                // Sayılamaz olaylar için Poisson CDF
                 val k = threshold.toInt()
                 val underProb = poissonCDF(k, projection)
-                1.0 - underProb + (if (threshold == k.toDouble()) 0.0 else 0.0)
+                1.0 - underProb
             } else {
-                calculateOverProbability(projection, threshold, stdDev)
+                calculateOverProbability(projection, threshold, sDev)
             }.coerceIn(0.0, 1.0)
 
             val underProb = 1.0 - overProb

@@ -227,6 +227,21 @@ object NbaPredictorEngine {
                 projection *= ((tactical.ptsModifier + tactical.rebModifier + tactical.astModifier) / 3.0)
                 projection *= ((defenderImpact.ptsModifier * 2 + 1.0) / 3.0)
             }
+            "P+R" -> {
+                projection *= ((tactical.ptsModifier + tactical.rebModifier) / 2.0)
+                projection *= ((defenderImpact.ptsModifier + 1.0) / 2.0)
+            }
+            "P+A" -> {
+                projection *= ((tactical.ptsModifier + tactical.astModifier) / 2.0)
+                projection *= ((defenderImpact.ptsModifier + 1.0) / 2.0)
+            }
+            "STL" -> {
+                projection *= tactical.tovModifier
+                projection *= (defenderImpact.primaryDefender.stealRate / 1.0).coerceIn(0.9, 1.15)
+            }
+            "BLK" -> {
+                projection *= (defenderImpact.primaryDefender.blockRate / 0.8).coerceIn(0.85, 1.20)
+            }
         }
 
         // 5. Dinamik Maç Temposu (Possessions Çarpanı)

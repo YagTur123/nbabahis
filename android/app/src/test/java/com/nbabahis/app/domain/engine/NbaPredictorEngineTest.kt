@@ -186,4 +186,46 @@ class NbaPredictorEngineTest {
         assertTrue("Doğrulama karnesi A veya B olmalıdır", report.accuracyGrade in listOf("A+", "A", "B+", "B"))
         assertTrue("PTS için MAE hesaplanmalıdır", report.metricsByStat.containsKey("PTS"))
     }
+
+    @Test
+    fun testHalftimeLiveProjection() {
+        val player = NbaPlayer(playerId = 1629029, name = "Luka Doncic", teamAbbr = "DAL", position = "G")
+        val history = createSampleHistory(32.0, 9.0, 10.0)
+
+        val pregame = NbaPredictorEngine.predictPlayer(
+            player = player,
+            history = history,
+            teamRoster = listOf(player),
+            teamStats = TeamStats(teamAbbr = "DAL"),
+            opponentStats = TeamStats(teamAbbr = "GSW"),
+            isHome = true
+        )
+        assertNotNull(pregame)
+
+        val h1Box = HalftimeBoxScore(
+            h1Pts = 18.0,
+            h1Reb = 5.0,
+            h1Ast = 6.0,
+            h1Threes = 2.0,
+            h1Min = 19.0,
+            fouls = 3, // Erken faul problemi
+            marginAtHalf = 6.0
+        )
+
+        val liveResult = HalftimeLiveEngine.calculateLiveProjection(player, pregame!!, h1Box)
+        assertNotNull(liveResult)
+        assertNotNull("3 faul alan oyuncuda faul uyarısı bulunmalıdır", liveResult.foulRiskNote)
+        assertTrue("Canlı PTS tahmini ilk yarı atılan 18 sayıdan büyük olmalıdır",
+            (liveResult.liveStats.firstOrNull { it.statKey == "PTS" }?.totalProjected ?: 0.0) > 18.0)
+    }
+
+    @Test
+    fun testStandardHalfPointThresholds() {
+        val thresholds = ProbabilityEngine.getProbableThresholds("PTS", 24.3, 4.2)
+        assertTrue("Baremler boş olmamalıdır", thresholds.isNotEmpty())
+        for (t in thresholds) {
+            val decimal = t.threshold - t.threshold.toInt()
+            assertEquals("Tüm baremler .5 buçuklu standart olmalıdır", 0.5, decimal, 0.001)
+        }
+    }
 }

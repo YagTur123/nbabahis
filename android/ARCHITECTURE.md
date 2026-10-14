@@ -108,8 +108,9 @@ android/
 │   │       │   │   ├── CircadianTravelEngine.kt   # Jetlag & yolculuk yorgunluk motoru
 │   │       │   │   ├── GameStakesEngine.kt        # Playoff & lig önemi motoru
 │   │       │   │   ├── MatchupTacticalEngine.kt   # Savunma şemaları & tempo motoru
-│   │       │   │   ├── ProbabilityEngine.kt       # Normal & Poisson CDF olasılık motoru
+│   │       │   │   ├── ProbabilityEngine.kt       # Normal & Poisson CDF olasılık motoru (.5 standart baremler)
 │   │       │   │   ├── PlayerComparisonEngine.kt  # Kafa kafaya kıyaslama motoru
+│   │       │   │   ├── HalftimeLiveEngine.kt      # Devre arası canlı maç içi projeksiyon motoru
 │   │       │   │   └── BacktestTrackerEngine.kt   # Geçmiş maç doğrulama & MAE motoru
 │   │       │   └── model/                         # PredictionResult, StatPrediction, Trend
 │   │       └── ui/

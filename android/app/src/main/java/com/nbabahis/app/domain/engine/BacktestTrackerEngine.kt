@@ -120,6 +120,8 @@ object BacktestTrackerEngine {
 
         val overallHitRate = if (allHits.isNotEmpty()) {
             round2((allHits.count { it }.toDouble() / allHits.size) * 100.0)
+        } else if (metricsByStat.isNotEmpty()) {
+            round2(metricsByStat.values.map { it.hitRatePct }.average())
         } else {
             0.0
         }
