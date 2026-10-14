@@ -132,10 +132,10 @@ object CircadianTravelEngine {
     }
 
     private fun calculateRoadTripFatigue(gameNumber: Int): Double {
-        return when (gameNumber) {
-            1 -> 0.00
-            2 -> 0.02
-            3 -> 0.045
+        return when {
+            gameNumber <= 1 -> 0.00
+            gameNumber == 2 -> 0.02
+            gameNumber == 3 -> 0.045
             else -> 0.07
         }
     }

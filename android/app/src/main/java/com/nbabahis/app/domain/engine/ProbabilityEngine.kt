@@ -45,26 +45,26 @@ object ProbabilityEngine {
      * Computed via series expansion for numerical stability
      */
     private fun poissonCDF(k: Int, lambda: Double): Double {
-        require(k >= 0) { "k must be non-negative" }
-        require(lambda > 0) { "lambda must be positive" }
+        if (k < 0) return 0.0
+        if (lambda <= 1e-10) return 1.0
 
-        if (lambda < 1e-10) return if (k >= 0) 1.0 else 0.0
+        val safeLambda = lambda.coerceAtLeast(0.01)
 
         // Use series expansion for small λ or small k
-        if (lambda < 30.0 && k < 100) {
+        if (safeLambda < 30.0 && k < 100) {
             var sum = 0.0
-            var term = exp(-lambda)
+            var term = exp(-safeLambda)
             sum += term
             for (i in 1..k) {
-                term *= lambda / i
+                term *= safeLambda / i
                 sum += term
             }
-            return sum
+            return sum.coerceIn(0.0, 1.0)
         }
 
         // For larger values, use normal approximation with continuity correction
-        val z = (k + 0.5 - lambda) / sqrt(lambda)
-        return normalCDF(z)
+        val z = (k + 0.5 - safeLambda) / sqrt(safeLambda)
+        return normalCDF(z).coerceIn(0.0, 1.0)
     }
 
     /**
@@ -72,11 +72,9 @@ object ProbabilityEngine {
      * P(X > threshold) = 1 - Φ((threshold - μ) / σ)
      */
     fun calculateOverProbability(projection: Double, threshold: Double, stdDev: Double): Double {
-        require(stdDev >= 0.0) { "Standard deviation must be non-negative" }
-        if (stdDev == 0.0) return if (projection > threshold) 1.0 else 0.0
-
-        val z = (threshold - projection) / stdDev
-        return 1.0 - normalCDF(z)
+        val s = if (stdDev > 1e-6) stdDev else 1.0
+        val z = (threshold - projection) / s
+        return (1.0 - normalCDF(z)).coerceIn(0.0, 1.0)
     }
 
     /**
@@ -84,11 +82,9 @@ object ProbabilityEngine {
      * P(X ≤ threshold) = Φ((threshold - μ) / σ)
      */
     fun calculateUnderProbability(projection: Double, threshold: Double, stdDev: Double): Double {
-        require(stdDev >= 0.0) { "Standard deviation must be non-negative" }
-        if (stdDev == 0.0) return if (projection <= threshold) 1.0 else 0.0
-
-        val z = (threshold - projection) / stdDev
-        return normalCDF(z)
+        val s = if (stdDev > 1e-6) stdDev else 1.0
+        val z = (threshold - projection) / s
+        return normalCDF(z).coerceIn(0.0, 1.0)
     }
 
     /**
